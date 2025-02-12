@@ -154,16 +154,19 @@ function PluginManager.LoadPlugin(pluginName)
     
     Ora:Info("Loading plugin: " .. pluginName)
     
-    -- Load plugin module with detailed error handling
-    local success, plugin = xpcall(
-        function()
-            return _G.Innovare.System.LoadModule("Plugins/" .. pluginName .. "/init")
-        end,
-        debug.traceback
-    )
+    -- Verify Censura elements
+    if not (Censura and Censura.Elements and Censura.Elements.Section) then
+        Ora:Error("Required Censura elements not available")
+        return false
+    end
+    
+    -- Load plugin
+    local success, plugin = pcall(function()
+        return _G.Innovare.System.LoadModule("Plugins/" .. pluginName .. "/init")
+    end)
     
     if not success then
-        Ora:Error("Failed to load plugin module: " .. pluginName .. "\n" .. tostring(plugin))
+        Ora:Error("Failed to load plugin module: " .. pluginName)
         return false
     end
     
@@ -174,55 +177,56 @@ function PluginManager.LoadPlugin(pluginName)
         return false
     end
     
-    -- Initialize plugin with detailed error handling
-    local initSuccess, initError = xpcall(
-        function()
-            Ora:Info("Initializing plugin: " .. pluginName)
-            -- Add debug prints
-            print("Plugin tab type:", typeof(pluginTab))
-            print("Plugin init type:", typeof(plugin.Init))
-            plugin.Init(pluginTab)
-        end,
-        debug.traceback
-    )
+    -- Initialize plugin
+    success = pcall(function()
+        plugin.Init(pluginTab)
+    end)
     
-    if not initSuccess then
-        Ora:Error("Failed to initialize plugin: " .. pluginName .. "\nError: " .. tostring(initError))
+    if not success then
+        Ora:Error("Failed to initialize plugin: " .. pluginName)
         return false
     end
     
-    -- Store plugin reference
+    -- Store plugin
     PluginManager._plugins[pluginName] = plugin
     PluginManager._activePlugins[pluginName] = true
     _G.Innovare.Plugins[pluginName] = plugin
     
-    Ora:Info("Successfully loaded plugin: " .. pluginName)
     return true
 end
--- Debug function
-function PluginManager.Debug()
-    print("\n=== PluginManager Debug ===")
-    print("Initialized:", PluginManager._initialized)
-    print("Window exists:", mainWindow ~= nil)
-    print("Content exists:", mainContent ~= nil)
-    print("TabSystem exists:", tabSystem ~= nil)
+
+-- Add test function
+function PluginManager.TestElements()
+    print("\n=== Testing UI Elements ===")
+    local Censura = _G.Innovare.System.Censura
     
-    if mainContent then
-        print("\nContent Children:")
-        for _, child in ipairs(mainContent:GetChildren()) do
-            print("- " .. child.Name .. " (" .. child.ClassName .. ")")
-        end
+    print("Checking Censura elements:")
+    print("- Section:", type(Censura.Elements.Section))
+    print("- Toggle:", type(Censura.Elements.Toggle))
+    
+    -- Test creating elements
+    local testFrame = Instance.new("Frame")
+    
+    local success = pcall(function()
+        local section = Censura.Elements.Section.new({
+            title = "Test Section"
+        })
+        section.Parent = testFrame
+        print("\nSection created successfully")
+        
+        local toggle = Censura.Elements.Toggle.new({
+            text = "Test Toggle",
+            default = false
+        })
+        toggle.Parent = section
+        print("Toggle created successfully")
+    end)
+    
+    if not success then
+        print("Element creation test failed")
     end
     
-    if tabSystem then
-        print("\nTab System Info:")
-        print("Number of tabs:", #tabSystem._tabs)
-        for i, tab in ipairs(tabSystem._tabs) do
-            print(string.format("Tab %d: %s", i, tab.name))
-        end
-    end
-    
-    print("=========================\n")
+    print("========================\n")
 end
 
 -- Add a test function
