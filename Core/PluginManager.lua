@@ -282,36 +282,4 @@ function PluginManager.Debug()
     print("=========================\n")
 end
 
--- Example Usage:
---[[
-    -- Initialize PluginManager
-    local window, content = Censura.Elements.Window.new({
-        title = "My Window",
-        size = UDim2.new(0, 400, 0, 500)
-    })
-    PluginManager.Init(window, content)
-    
-    -- Load a plugin by name
-    PluginManager.LoadPlugin("ESP")
-    
-    -- Load a plugin module directly
-    local MyPlugin = {
-        Name = "CustomPlugin",
-        Init = function(tab)
-            -- Plugin initialization code
-        end,
-        Cleanup = function()
-            -- Plugin cleanup code
-        end
-    }
-    PluginManager.LoadPlugin(MyPlugin)
-    
-    -- Enable/Disable plugins
-    PluginManager.DisablePlugin("ESP")
-    PluginManager.EnablePlugin("ESP")
-    
-    -- Debug information
-    PluginManager.Debug()
---]]
-
 return PluginManager
