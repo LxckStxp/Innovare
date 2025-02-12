@@ -1,7 +1,22 @@
--- Innovare.lua
+--[[
+    Innovare.lua
+    Plugin Management System for Roblox
+    Author: LxckStxp
+    Version: 1.0.0
+--]]
+
+-- Services
+local RunService = game:GetService("RunService")
+
+-- Check for existing instance
 if _G.Innovare then
     print(string.rep("\n", 30))
-    print("Innovare Detected. Removing existing instance.")
+    print("Innovare Detected. Cleaning up previous instance...")
+    
+    if _G.Innovare.System.Cleanup then
+        _G.Innovare.System.Cleanup()
+    end
+    
     _G.Innovare = nil
 end
 
@@ -12,6 +27,7 @@ _G.Innovare = {
     System = {},      -- System Functions Storage
     Modules = {},     -- Core Module Storage
     Plugins = {},     -- Plugin Storage
+    GUI = nil,        -- Main GUI Instance
     Messages = {
         Clear = string.rep("\n", 30),
         Splash = [[
@@ -39,9 +55,11 @@ Sys.LoadDependency = function(url)
     local success, result = pcall(function()
         return loadstring(game:HttpGet(url, true))()
     end)
+    
     if not success then
-        error("Failed to load dependency: " .. tostring(result))
+        error(string.format("Failed to load dependency: %s", tostring(result)))
     end
+    
     return result
 end
 
@@ -60,26 +78,79 @@ Sys.LoadModule = function(module)
     local success, result = pcall(function()
         return loadstring(game:HttpGet(url, true))()
     end)
+    
     if not success then
-        Ora:Error("Failed to load module from " .. url .. ": " .. tostring(result))
+        Ora:Error(string.format("Failed to load module %s: %s", module, tostring(result)))
+        return nil
     end
+    
     return result
 end
 
--- Initialize Plugin Manager
+-- Setup GUI Container
+Sys.SetupGUI = function()
+    Inn.GUI = Instance.new("ScreenGui")
+    Inn.GUI.Name = "InnovareGUI"
+    Inn.GUI.ResetOnSpawn = false
+    Inn.GUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    Inn.GUI.DisplayOrder = 999
+    
+    -- Try to parent to CoreGui, fallback to PlayerGui
+    local success = pcall(function()
+        Inn.GUI.Parent = game:GetService("CoreGui")
+    end)
+    
+    if not success then
+        Inn.GUI.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+        Ora:Warn("Parented to PlayerGui instead of CoreGui")
+    end
+end
+
+-- Cleanup System
+Sys.Cleanup = function()
+    -- Cleanup plugins
+    for name, plugin in pairs(Inn.Plugins) do
+        if plugin.Cleanup then
+            Ora:Info(string.format("Cleaning up plugin: %s", name))
+            plugin:Cleanup()
+        end
+    end
+    
+    -- Remove GUI
+    if Inn.GUI then
+        Inn.GUI:Destroy()
+    end
+    
+    -- Clear tables
+    table.clear(Inn.Plugins)
+    table.clear(Inn.Modules)
+end
+
+-- Main Initialization
 Sys.Init = function()
     print(string.format(Inn.Messages.Clear .. Inn.Messages.Splash .. "\n", Inn.Version))
-    Ora:Info("Loading Core Modules\n")
-
+    
+    Ora:Info("Starting Innovare initialization...")
+    
+    -- Setup GUI Container
+    Sys.SetupGUI()
+    
+    -- Load Core Modules
+    Ora:Info("Loading core modules...")
+    
     -- Load Plugin Manager
     Inn.Modules.PluginManager = Sys.LoadModule("Core/PluginManager")
+    if not Inn.Modules.PluginManager then
+        Ora:Error("Failed to load PluginManager. Aborting initialization.")
+        return
+    end
     
     -- Create main window using Censura
     local window = Sys.Censura.Elements.Window.new({
         title = "Innovare",
         size = UDim2.new(0, 400, 0, 500)
     })
-
+    
     -- Initialize Plugin Manager with window
     Inn.Modules.PluginManager.Init(window)
     
@@ -89,11 +160,31 @@ Sys.Init = function()
     }
     
     for _, plugin in ipairs(plugins) do
+        Ora:Info(string.format("Loading plugin: %s", plugin))
         Inn.Modules.PluginManager.LoadPlugin(plugin)
+    end
+    
+    Ora:Info("Initialization Complete!")
+    
+    -- Example plugin usage
+    if Inn.Plugins.ESP then
+        Ora:Info("ESP Plugin loaded successfully!")
     end
 end
 
 -- Run Initialization
 Sys.Init()
+
+-- Example Usage:
+--[[
+    -- Load a new plugin
+    Inn.Modules.PluginManager.LoadPlugin("MyNewPlugin")
+    
+    -- Access a plugin
+    local espPlugin = Inn.Plugins.ESP
+    
+    -- Cleanup when needed
+    Inn.System.Cleanup()
+--]]
 
 return Inn
