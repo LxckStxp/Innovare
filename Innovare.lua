@@ -1,52 +1,63 @@
 --[[
     Innovare.lua
-    Advanced Plugin Management System for Roblox
+    Plugin Management System for Roblox
     Author: LxckStxp
     Version: 1.0.0
 --]]
 
 -- Services
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
--- Constants
-local DEPENDENCIES = {
-    Oratio = {
-        url = "https://raw.githubusercontent.com/LxckStxp/Oratio/main/Oratio.lua",
-        required = true
-    },
-    Censura = {
-        url = "https://raw.githubusercontent.com/LxckStxp/Censura/main/Censura.lua",
-        required = true
-    }
-}
-
--- Check for existing instance with enhanced cleanup
+-- Check for existing instance
 if _G.Innovare then
     print(string.rep("\n", 30))
     print("Innovare Detected. Cleaning up previous instance...")
     
     if _G.Innovare.System.Cleanup then
-        pcall(function()
-            _G.Innovare.System.Cleanup()
-        end)
+        _G.Innovare.System.Cleanup()
     end
     
     _G.Innovare = nil
 end
 
--- Establish Global Innovare Table with meta methods for better control
-_G.Innovare = setmetatable({
+-- Load Core Dependencies First
+local function loadCoreDependencies()
+    local success, oratio = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/Oratio/main/Oratio.lua"))()
+    end)
+    
+    if not success then
+        warn("Failed to load Oratio:", oratio)
+        return
+    end
+    
+    local success2, censura = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/Censura/main/Censura.lua"))()
+    end)
+    
+    if not success2 then
+        warn("Failed to load Censura:", censura)
+        return
+    end
+    
+    return oratio, censura
+end
+
+-- Load dependencies before establishing Innovare
+local Oratio, Censura = loadCoreDependencies()
+if not Oratio or not Censura then
+    error("Failed to load core dependencies")
+    return
+end
+
+-- Establish Global Innovare Table
+_G.Innovare = {
     Version = "1.0.0",
     Git = "https://raw.githubusercontent.com/LxckStxp/Innovare/main/",
     System = {
-        Dependencies = {},  -- Store loaded dependencies
-        Status = {         -- System status tracking
-            Initialized = false,
-            DependenciesLoaded = false,
-            PluginsLoaded = false
-        }
+        Oratio = Oratio,    -- Store Oratio reference
+        Censura = Censura,  -- Store Censura reference
     },
     Modules = {},     -- Core Module Storage
     Plugins = {},     -- Plugin Storage
@@ -68,96 +79,21 @@ dP dP    dP dP    dP `88888P' 8888P'   `88888P8 dP       `88888P'  v%s
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ]]
     }
-}, {
-    __index = function(t, k)
-        if k == "Ready" then
-            return t.System.Status.Initialized
-        end
-        return rawget(t, k)
-    end
-})
+}
 
 local Inn = _G.Innovare
 local Sys = Inn.System
 
--- Enhanced HTTP handling
-Sys.HttpGet = function(url)
-    local success, result = pcall(function()
-        return game:HttpGet(url, true)
-    end)
-    
-    if not success then
-        error(string.format("HTTP GET failed: %s", tostring(result)))
-    end
-    
-    return result
-end
+-- Initialize Logger
+local Ora = Sys.Oratio.Logger.new({
+    moduleName = "Innovare"
+})
 
--- Enhanced dependency loader
-Sys.LoadDependency = function(name, info)
-    if Sys.Dependencies[name] then
-        return Sys.Dependencies[name]
-    end
-    
-    local success, result = pcall(function()
-        local content = Sys.HttpGet(info.url)
-        return loadstring(content)()
-    end)
-    
-    if not success then
-        if info.required then
-            error(string.format("Failed to load required dependency %s: %s", name, tostring(result)))
-        else
-            warn(string.format("Failed to load optional dependency %s: %s", name, tostring(result)))
-            return nil
-        end
-    end
-    
-    Sys.Dependencies[name] = result
-    return result
-end
-
--- Initialize all dependencies
-Sys.InitializeDependencies = function()
-    -- Load Oratio first for logging
-    local oratio = Sys.LoadDependency("Oratio", DEPENDENCIES.Oratio)
-    if not oratio then return false end
-    
-    Sys.Oratio = oratio
-    Ora = Sys.Oratio.Logger.new({
-        moduleName = "Innovare"
-    })
-    
-    -- Load Censura and store its elements properly
-    local censura = Sys.LoadDependency("Censura", DEPENDENCIES.Censura)
-    if not censura then return false end
-    
-    -- Store Censura components properly
-    Sys.Censura = {
-        Elements = censura.Elements,
-        Modules = censura.Modules,
-        GUI = censura.GUI
-    }
-    
-    if not Sys.Censura.Elements then
-        Ora:Error("Censura Elements not available after loading")
-        return false
-    end
-    
-    Sys.Status.DependenciesLoaded = true
-    return true
-end
-
--- Enhanced module loader
+-- Function to Load Modules
 Sys.LoadModule = function(module)
-    if Inn.Modules[module] then
-        return Inn.Modules[module]
-    end
-    
     local url = Inn.Git .. module .. ".lua"
     local success, result = pcall(function()
-        local content = Sys.HttpGet(url)
-        return loadstring(content)()
+        return loadstring(game:HttpGet(url, true))()
     end)
     
     if not success then
@@ -165,7 +101,6 @@ Sys.LoadModule = function(module)
         return nil
     end
     
-    Inn.Modules[module] = result
     return result
 end
 
@@ -177,29 +112,24 @@ Sys.SetupGUI = function()
     Inn.GUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     Inn.GUI.DisplayOrder = 999
     
+    -- Try to parent to CoreGui, fallback to PlayerGui
     local success = pcall(function()
         Inn.GUI.Parent = game:GetService("CoreGui")
     end)
     
     if not success then
         Inn.GUI.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-        Ora:Warn("Using PlayerGui fallback")
+        Ora:Warn("Parented to PlayerGui instead of CoreGui")
     end
-    
-    return true
 end
 
--- Enhanced cleanup system
+-- Cleanup System
 Sys.Cleanup = function()
-    Ora:Info("Starting cleanup...")
-    
     -- Cleanup plugins
     for name, plugin in pairs(Inn.Plugins) do
         if plugin.Cleanup then
-            pcall(function()
-                plugin:Cleanup()
-                Ora:Info(string.format("Cleaned up plugin: %s", name))
-            end)
+            Ora:Info(string.format("Cleaning up plugin: %s", name))
+            plugin:Cleanup()
         end
     end
     
@@ -211,50 +141,45 @@ Sys.Cleanup = function()
     -- Clear tables
     table.clear(Inn.Plugins)
     table.clear(Inn.Modules)
-    table.clear(Sys.Dependencies)
-    
-    Sys.Status.Initialized = false
-    Sys.Status.DependenciesLoaded = false
-    Sys.Status.PluginsLoaded = false
-    
-    Ora:Info("Cleanup complete")
 end
 
 -- Main Initialization
 Sys.Init = function()
-    if Sys.Status.Initialized then
-        Ora:Warn("Innovare already initialized")
-        return false
-    end
-    
     print(string.format(Inn.Messages.Clear .. Inn.Messages.Splash .. "\n", Inn.Version))
     
-    -- Initialize dependencies
-    if not Sys.InitializeDependencies() then
-        Ora:Error("Failed to initialize dependencies")
+    Ora:Info("Starting Innovare initialization...")
+    
+    -- Verify Censura is loaded and available
+    if not Sys.Censura then
+        Ora:Error("Censura not found in System")
         return false
     end
     
-    -- Setup GUI
-    if not Sys.SetupGUI() then
-        Ora:Error("Failed to setup GUI")
+    if not Sys.Censura.Elements then
+        Ora:Error("Censura Elements not available")
         return false
     end
+    
+    -- Setup GUI Container
+    Sys.SetupGUI()
+    
+    -- Load Core Modules
+    Ora:Info("Loading core modules...")
     
     -- Load Plugin Manager
     Inn.Modules.PluginManager = Sys.LoadModule("Core/PluginManager")
     if not Inn.Modules.PluginManager then
-        Ora:Error("Failed to load PluginManager")
+        Ora:Error("Failed to load PluginManager. Aborting initialization.")
         return false
     end
     
-    -- Create main window
+    -- Create main window using Censura
     local window = Sys.Censura.Elements.Window.new({
         title = "Innovare",
         size = UDim2.new(0, 400, 0, 500)
     })
     
-    -- Initialize Plugin Manager
+    -- Initialize Plugin Manager with window
     if not Inn.Modules.PluginManager.Init(window) then
         Ora:Error("Failed to initialize PluginManager")
         return false
@@ -265,24 +190,53 @@ Sys.Init = function()
         "ESP" -- Add more plugins here
     }
     
-    local loadedPlugins = 0
     for _, plugin in ipairs(plugins) do
-        if Inn.Modules.PluginManager.LoadPlugin(plugin) then
-            loadedPlugins += 1
+        Ora:Info(string.format("Loading plugin: %s", plugin))
+        local success = Inn.Modules.PluginManager.LoadPlugin(plugin)
+        if not success then
+            Ora:Warn(string.format("Failed to load plugin: %s", plugin))
         end
     end
     
-    Sys.Status.PluginsLoaded = loadedPlugins > 0
-    Sys.Status.Initialized = true
-    
-    Ora:Info(string.format("Initialization Complete! Loaded %d/%d plugins", loadedPlugins, #plugins))
+    Ora:Info("Initialization Complete!")
     return true
 end
 
+-- Example usage demonstration
+local function demonstrateUsage()
+    -- Create a custom plugin
+    local TestPlugin = {
+        Name = "TestPlugin",
+        Init = function(tab)
+            local section = Sys.Censura.Elements.Section.new({
+                title = "Test Section"
+            })
+            section.Parent = tab
+            
+            Sys.Censura.Elements.Button.new({
+                text = "Test Button",
+                onClick = function()
+                    Sys.Censura.Elements.Notification.Success("Button clicked!")
+                end
+            }).Parent = section
+        end,
+        Cleanup = function()
+            print("Test plugin cleanup")
+        end
+    }
+    
+    -- Load the test plugin
+    Inn.Modules.PluginManager.LoadPlugin(TestPlugin)
+end
+
 -- Run Initialization
-local success, result = pcall(Sys.Init)
-if not success then
-    warn("Innovare initialization failed:", result)
+local success = Sys.Init()
+
+if success then
+    Ora:Info("Innovare loaded successfully!")
+    -- demonstrateUsage() -- Uncomment to run the demonstration
+else
+    Ora:Error("Failed to initialize Innovare")
 end
 
 return Inn
