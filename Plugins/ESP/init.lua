@@ -104,7 +104,7 @@ function ESP.Init(tab)
     end
     
     log("ESP initialization completed successfully")
-end
+end 
 
 function ESP:SetupConnections()
     -- Player Added
