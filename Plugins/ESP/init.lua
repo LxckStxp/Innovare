@@ -203,4 +203,33 @@ function ESP:Cleanup()
     end
 end
 
+function ESP.Test()
+    print("\n=== ESP Plugin Test ===")
+    print("ESP table structure:")
+    for k, v in pairs(ESP) do
+        print(string.format("- %s: %s", k, type(v)))
+    end
+    
+    print("\nVerifying dependencies:")
+    print("Innovare:", _G.Innovare ~= nil)
+    print("Censura:", _G.Innovare and _G.Innovare.System.Censura ~= nil)
+    print("Elements:", _G.Innovare and _G.Innovare.System.Censura.Elements ~= nil)
+    
+    print("\nTesting functions:")
+    local success, err = pcall(function()
+        local testTab = Instance.new("ScrollingFrame")
+        ESP.Init(testTab)
+        print("Init test successful")
+    end)
+    
+    if not success then
+        print("Init test failed:", err)
+    end
+    
+    print("========================\n")
+end
+
+-- Add test function to ESP table
+ESP.Test = ESP.Test
+
 return ESP
