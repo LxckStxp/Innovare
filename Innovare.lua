@@ -135,6 +135,18 @@ Sys.Init = function()
     -- Setup GUI Container
     Sys.SetupGUI()
     
+    -- Ensure Censura is loaded first
+    if not Sys.Censura then
+        Ora:Error("Censura not loaded! Aborting initialization.")
+        return
+    end
+    
+    -- Wait for Censura Elements to be available
+    if not Sys.Censura.Elements then
+        Ora:Error("Censura Elements not available! Aborting initialization.")
+        return
+    end
+    
     -- Load Core Modules
     Ora:Info("Loading core modules...")
     
@@ -152,7 +164,10 @@ Sys.Init = function()
     })
     
     -- Initialize Plugin Manager with window
-    Inn.Modules.PluginManager.Init(window)
+    if not Inn.Modules.PluginManager.Init(window) then
+        Ora:Error("Failed to initialize PluginManager. Aborting initialization.")
+        return
+    end
     
     -- Load configured plugins
     local plugins = {
@@ -160,31 +175,15 @@ Sys.Init = function()
     }
     
     for _, plugin in ipairs(plugins) do
-        Ora:Info(string.format("Loading plugin: %s", plugin))
-        Inn.Modules.PluginManager.LoadPlugin(plugin)
+        if not Inn.Modules.PluginManager.LoadPlugin(plugin) then
+            Ora:Warn("Failed to load plugin: " .. plugin)
+        end
     end
     
     Ora:Info("Initialization Complete!")
-    
-    -- Example plugin usage
-    if Inn.Plugins.ESP then
-        Ora:Info("ESP Plugin loaded successfully!")
-    end
 end
 
 -- Run Initialization
 Sys.Init()
-
--- Example Usage:
---[[
-    -- Load a new plugin
-    Inn.Modules.PluginManager.LoadPlugin("MyNewPlugin")
-    
-    -- Access a plugin
-    local espPlugin = Inn.Plugins.ESP
-    
-    -- Cleanup when needed
-    Inn.System.Cleanup()
---]]
 
 return Inn
