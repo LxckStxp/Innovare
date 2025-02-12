@@ -16,72 +16,136 @@ local mainContent
 local tabSystem
 local Censura = _G.Innovare.System.Censura
 
--- Debug function to verify Censura state
+-- Debug function for Censura verification
 local function debugCensura()
     print("\n=== Censura Debug ===")
     print("Censura exists:", Censura ~= nil)
     if Censura then
         print("Elements exists:", Censura.Elements ~= nil)
         if Censura.Elements then
-            print("Available Elements:")
-            for name, element in pairs(Censura.Elements) do
-                print("- " .. name)
+            print("TabSystem exists:", Censura.Elements.TabSystem ~= nil)
+            if Censura.Elements.TabSystem then
+                print("TabSystem type:", type(Censura.Elements.TabSystem))
+                print("TabSystem.new exists:", type(Censura.Elements.TabSystem.new) == "function")
             end
-            print("\nTabSystem exists:", Censura.Elements.TabSystem ~= nil)
         end
     end
     print("=====================\n")
 end
 
--- Initialize the tab system
-local function createTabSystem()
-    -- Debug output
-    debugCensura()
+-- Create basic tab container
+local function createBasicTabContainer()
+    -- Create main container
+    local container = Instance.new("Frame")
+    container.Name = "TabContainer"
+    container.Size = UDim2.new(1, 0, 1, 0)
+    container.BackgroundTransparency = 1
+    container.Parent = mainContent
     
-    -- Create the tab system
-    local success, newTabSystem = pcall(function()
-        local ts = Censura.Elements.TabSystem.new()
-        ts.Parent = mainContent
-        return ts
-    end)
+    -- Create tab bar
+    local tabBar = Instance.new("Frame")
+    tabBar.Name = "TabBar"
+    tabBar.Size = UDim2.new(1, 0, 0, 30)
+    tabBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    tabBar.Parent = container
     
-    if not success or not newTabSystem then
-        Ora:Error("Failed to create TabSystem: " .. tostring(newTabSystem))
-        return nil
+    -- Create tab content area
+    local contentArea = Instance.new("Frame")
+    contentArea.Name = "ContentArea"
+    contentArea.Size = UDim2.new(1, 0, 1, -35)
+    contentArea.Position = UDim2.new(0, 0, 0, 35)
+    contentArea.BackgroundTransparency = 1
+    contentArea.Parent = container
+    
+    -- Add methods to container
+    local TabSystem = {
+        _tabs = {},
+        _currentTab = nil
+    }
+    
+    function TabSystem:AddTab(name)
+        -- Create tab button
+        local tabButton = Instance.new("TextButton")
+        tabButton.Size = UDim2.new(0, 100, 1, -4)
+        tabButton.Position = UDim2.new(0, #self._tabs * 105, 0, 2)
+        tabButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        tabButton.Text = name
+        tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        tabButton.Parent = tabBar
+        
+        -- Create content frame
+        local contentFrame = Instance.new("ScrollingFrame")
+        contentFrame.Size = UDim2.new(1, 0, 1, 0)
+        contentFrame.BackgroundTransparency = 1
+        contentFrame.ScrollBarThickness = 4
+        contentFrame.Visible = #self._tabs == 0  -- First tab visible by default
+        contentFrame.Parent = contentArea
+        
+        -- Setup auto-sizing
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.Padding = UDim.new(0, 5)
+        listLayout.Parent = contentFrame
+        
+        -- Store tab data
+        local tab = {
+            button = tabButton,
+            content = contentFrame,
+            name = name
+        }
+        table.insert(self._tabs, tab)
+        
+        -- Tab button click handler
+        tabButton.MouseButton1Click:Connect(function()
+            -- Hide all tabs
+            for _, t in ipairs(self._tabs) do
+                t.content.Visible = false
+                t.button.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+            end
+            -- Show selected tab
+            contentFrame.Visible = true
+            tabButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            self._currentTab = tab
+        end)
+        
+        return contentFrame
     end
     
-    -- Create initial tab
-    success, result = pcall(function()
-        return newTabSystem:AddTab("Settings")
-    end)
-    
-    if not success then
-        Ora:Error("Failed to create Settings tab: " .. tostring(result))
-        return nil
-    end
-    
-    return newTabSystem
+    return TabSystem
 end
 
--- Public Functions
+-- Initialize the plugin manager
 function PluginManager.Init(window, content)
     Ora:Info("Initializing PluginManager...")
+    debugCensura()  -- Debug Censura state
     
-    -- Store window references
+    if not window or not content then
+        Ora:Error("Window or content not provided")
+        return false
+    end
+    
     mainWindow = window
     mainContent = content
     
-    -- Create tab system
-    tabSystem = createTabSystem()
+    -- Create basic tab system
+    tabSystem = createBasicTabContainer()
     if not tabSystem then
+        Ora:Error("Failed to create tab system")
+        return false
+    end
+    
+    -- Create initial "Settings" tab
+    local settingsTab = tabSystem:AddTab("Settings")
+    if not settingsTab then
+        Ora:Error("Failed to create Settings tab")
         return false
     end
     
     PluginManager._initialized = true
+    Ora:Info("PluginManager initialized successfully")
     return true
 end
 
--- Simple plugin loading
+-- Plugin loading function
 function PluginManager.LoadPlugin(pluginName)
     if not PluginManager._initialized then
         Ora:Error("PluginManager not initialized")
@@ -93,15 +157,15 @@ function PluginManager.LoadPlugin(pluginName)
         return _G.Innovare.System.LoadModule("Plugins/" .. pluginName .. "/init")
     end)
     
-    if not success then
+    if not success or not plugin then
         Ora:Error("Failed to load plugin: " .. pluginName)
         return false
     end
     
-    -- Create tab for plugin
+    -- Create plugin tab
     local pluginTab = tabSystem:AddTab(pluginName)
     if not pluginTab then
-        Ora:Error("Failed to create tab for plugin: " .. pluginName)
+        Ora:Error("Failed to create tab for: " .. pluginName)
         return false
     end
     
@@ -115,11 +179,12 @@ function PluginManager.LoadPlugin(pluginName)
         return false
     end
     
-    -- Store plugin
+    -- Store plugin reference
     PluginManager._plugins[pluginName] = plugin
     PluginManager._activePlugins[pluginName] = true
     _G.Innovare.Plugins[pluginName] = plugin
     
+    Ora:Info("Successfully loaded plugin: " .. pluginName)
     return true
 end
 
@@ -131,17 +196,18 @@ function PluginManager.Debug()
     print("Content exists:", mainContent ~= nil)
     print("TabSystem exists:", tabSystem ~= nil)
     
-    if tabSystem then
-        print("\nTabSystem methods:")
-        for name, func in pairs(getmetatable(tabSystem) or {}) do
-            print("- " .. name .. " (" .. type(func) .. ")")
-        end
-    end
-    
     if mainContent then
         print("\nContent Children:")
         for _, child in ipairs(mainContent:GetChildren()) do
             print("- " .. child.Name .. " (" .. child.ClassName .. ")")
+        end
+    end
+    
+    if tabSystem then
+        print("\nTab System Info:")
+        print("Number of tabs:", #tabSystem._tabs)
+        for i, tab in ipairs(tabSystem._tabs) do
+            print(string.format("Tab %d: %s", i, tab.name))
         end
     end
     
