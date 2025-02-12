@@ -159,9 +159,7 @@ function PluginManager.LoadPlugin(pluginName)
         function()
             return _G.Innovare.System.LoadModule("Plugins/" .. pluginName .. "/init")
         end,
-        function(err)
-            return debug.traceback(err, 2)
-        end
+        debug.traceback
     )
     
     if not success then
@@ -177,18 +175,19 @@ function PluginManager.LoadPlugin(pluginName)
     end
     
     -- Initialize plugin with detailed error handling
-    success = xpcall(
+    local initSuccess, initError = xpcall(
         function()
             Ora:Info("Initializing plugin: " .. pluginName)
+            -- Add debug prints
+            print("Plugin tab type:", typeof(pluginTab))
+            print("Plugin init type:", typeof(plugin.Init))
             plugin.Init(pluginTab)
         end,
-        function(err)
-            return debug.traceback(err, 2)
-        end
+        debug.traceback
     )
     
-    if not success then
-        Ora:Error("Failed to initialize plugin: " .. pluginName .. "\n" .. tostring(plugin))
+    if not initSuccess then
+        Ora:Error("Failed to initialize plugin: " .. pluginName .. "\nError: " .. tostring(initError))
         return false
     end
     
