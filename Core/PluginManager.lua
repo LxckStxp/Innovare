@@ -199,7 +199,6 @@ function PluginManager.LoadPlugin(pluginName)
     Ora:Info("Successfully loaded plugin: " .. pluginName)
     return true
 end
-
 -- Debug function
 function PluginManager.Debug()
     print("\n=== PluginManager Debug ===")
