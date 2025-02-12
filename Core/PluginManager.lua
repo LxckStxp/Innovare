@@ -152,30 +152,43 @@ function PluginManager.LoadPlugin(pluginName)
         return false
     end
     
-    -- Load plugin module
-    local success, plugin = pcall(function()
-        return _G.Innovare.System.LoadModule("Plugins/" .. pluginName .. "/init")
-    end)
+    Ora:Info("Loading plugin: " .. pluginName)
     
-    if not success or not plugin then
-        Ora:Error("Failed to load plugin: " .. pluginName)
+    -- Load plugin module with detailed error handling
+    local success, plugin = xpcall(
+        function()
+            return _G.Innovare.System.LoadModule("Plugins/" .. pluginName .. "/init")
+        end,
+        function(err)
+            return debug.traceback(err, 2)
+        end
+    )
+    
+    if not success then
+        Ora:Error("Failed to load plugin module: " .. pluginName .. "\n" .. tostring(plugin))
         return false
     end
     
     -- Create plugin tab
     local pluginTab = tabSystem:AddTab(pluginName)
     if not pluginTab then
-        Ora:Error("Failed to create tab for: " .. pluginName)
+        Ora:Error("Failed to create tab for plugin: " .. pluginName)
         return false
     end
     
-    -- Initialize plugin
-    success = pcall(function()
-        plugin.Init(pluginTab)
-    end)
+    -- Initialize plugin with detailed error handling
+    success = xpcall(
+        function()
+            Ora:Info("Initializing plugin: " .. pluginName)
+            plugin.Init(pluginTab)
+        end,
+        function(err)
+            return debug.traceback(err, 2)
+        end
+    )
     
     if not success then
-        Ora:Error("Failed to initialize plugin: " .. pluginName)
+        Ora:Error("Failed to initialize plugin: " .. pluginName .. "\n" .. tostring(plugin))
         return false
     end
     
@@ -212,6 +225,37 @@ function PluginManager.Debug()
     end
     
     print("=========================\n")
+end
+
+-- Add a test function
+function PluginManager.TestESP()
+    print("\n=== Testing ESP Plugin ===")
+    
+    -- Test Censura availability
+    print("Checking Censura...")
+    print("Censura available:", _G.Innovare.System.Censura ~= nil)
+    print("Elements available:", _G.Innovare.System.Censura.Elements ~= nil)
+    
+    -- Test tab system
+    print("\nChecking tab system...")
+    print("TabSystem exists:", tabSystem ~= nil)
+    if tabSystem then
+        print("AddTab function exists:", type(tabSystem.AddTab) == "function")
+    end
+    
+    -- Try loading ESP
+    print("\nTrying to load ESP...")
+    local success = PluginManager.LoadPlugin("ESP")
+    print("Load result:", success)
+    
+    if success then
+        print("\nESP Plugin state:")
+        print("Enabled:", _G.Innovare.Plugins.ESP.Enabled)
+        print("ShowInfo:", _G.Innovare.Plugins.ESP.ShowInfo)
+        print("Connections:", #_G.Innovare.Plugins.ESP.Connections)
+    end
+    
+    print("========================\n")
 end
 
 return PluginManager
