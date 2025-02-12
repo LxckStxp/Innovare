@@ -21,43 +21,47 @@ if _G.Innovare then
     _G.Innovare = nil
 end
 
--- Load Core Dependencies First
-local function loadCoreDependencies()
-    local success, oratio = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/Oratio/main/Oratio.lua"))()
-    end)
+-- Wait for Censura to fully initialize
+local function waitForCensura()
+    local startTime = tick()
+    local timeout = 5 -- 5 seconds timeout
     
-    if not success then
-        warn("Failed to load Oratio:", oratio)
-        return
-    end
+    repeat
+        if _G.Censura and _G.Censura.Elements and _G.Censura.Elements.Window then
+            return true
+        end
+        task.wait()
+    until tick() - startTime > timeout
     
-    local success2, censura = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/Censura/main/Censura.lua"))()
-    end)
-    
-    if not success2 then
-        warn("Failed to load Censura:", censura)
-        return
-    end
-    
-    return oratio, censura
+    return false
 end
 
--- Load dependencies before establishing Innovare
-local Oratio, Censura = loadCoreDependencies()
-if not Oratio or not Censura then
-    error("Failed to load core dependencies")
+-- Load and initialize Censura first
+local success, result = pcall(function()
+    return loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/Censura/main/Censura.lua"))()
+end)
+
+if not success then
+    error("Failed to load Censura: " .. tostring(result))
     return
 end
+
+-- Wait for Censura to initialize
+if not waitForCensura() then
+    error("Censura failed to initialize within timeout period")
+    return
+end
+
+-- Load Oratio for logging
+local Oratio = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/Oratio/main/Oratio.lua"))()
 
 -- Establish Global Innovare Table
 _G.Innovare = {
     Version = "1.0.0",
     Git = "https://raw.githubusercontent.com/LxckStxp/Innovare/main/",
     System = {
-        Oratio = Oratio,    -- Store Oratio reference
-        Censura = Censura,  -- Store Censura reference
+        Oratio = Oratio,
+        Censura = _G.Censura, -- Store direct reference to Censura
     },
     Modules = {},     -- Core Module Storage
     Plugins = {},     -- Plugin Storage
@@ -112,7 +116,6 @@ Sys.SetupGUI = function()
     Inn.GUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     Inn.GUI.DisplayOrder = 999
     
-    -- Try to parent to CoreGui, fallback to PlayerGui
     local success = pcall(function()
         Inn.GUI.Parent = game:GetService("CoreGui")
     end)
@@ -125,7 +128,6 @@ end
 
 -- Cleanup System
 Sys.Cleanup = function()
-    -- Cleanup plugins
     for name, plugin in pairs(Inn.Plugins) do
         if plugin.Cleanup then
             Ora:Info(string.format("Cleaning up plugin: %s", name))
@@ -133,12 +135,10 @@ Sys.Cleanup = function()
         end
     end
     
-    -- Remove GUI
     if Inn.GUI then
         Inn.GUI:Destroy()
     end
     
-    -- Clear tables
     table.clear(Inn.Plugins)
     table.clear(Inn.Modules)
 end
@@ -148,17 +148,6 @@ Sys.Init = function()
     print(string.format(Inn.Messages.Clear .. Inn.Messages.Splash .. "\n", Inn.Version))
     
     Ora:Info("Starting Innovare initialization...")
-    
-    -- Verify Censura is loaded and available
-    if not Sys.Censura then
-        Ora:Error("Censura not found in System")
-        return false
-    end
-    
-    if not Sys.Censura.Elements then
-        Ora:Error("Censura Elements not available")
-        return false
-    end
     
     -- Setup GUI Container
     Sys.SetupGUI()
@@ -202,39 +191,11 @@ Sys.Init = function()
     return true
 end
 
--- Example usage demonstration
-local function demonstrateUsage()
-    -- Create a custom plugin
-    local TestPlugin = {
-        Name = "TestPlugin",
-        Init = function(tab)
-            local section = Sys.Censura.Elements.Section.new({
-                title = "Test Section"
-            })
-            section.Parent = tab
-            
-            Sys.Censura.Elements.Button.new({
-                text = "Test Button",
-                onClick = function()
-                    Sys.Censura.Elements.Notification.Success("Button clicked!")
-                end
-            }).Parent = section
-        end,
-        Cleanup = function()
-            print("Test plugin cleanup")
-        end
-    }
-    
-    -- Load the test plugin
-    Inn.Modules.PluginManager.LoadPlugin(TestPlugin)
-end
-
 -- Run Initialization
 local success = Sys.Init()
 
 if success then
     Ora:Info("Innovare loaded successfully!")
-    -- demonstrateUsage() -- Uncomment to run the demonstration
 else
     Ora:Error("Failed to initialize Innovare")
 end
