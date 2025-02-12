@@ -10,48 +10,53 @@ local ESP = {
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
--- Debug function
-local function debugPrint(...)
-    print("[ESP Debug]", ...)
+-- Debug logging function
+local function log(...)
+    print("[ESP]", ...)
 end
 
 function ESP.Init(tab)
-    debugPrint("Initializing ESP plugin...")
+    log("Starting ESP initialization")
     
-    -- Verify dependencies
-    if not _G.Innovare then
-        error("Innovare not found")
-    end
-    if not _G.Innovare.System.Censura then
-        error("Censura not found")
-    end
-    if not _G.Innovare.System.Censura.Elements then
-        error("Censura Elements not found")
+    -- Verify tab parameter
+    if not tab then
+        error("Tab parameter is nil")
     end
     
+    log("Tab parameter verified")
+    
+    -- Verify Censura access
     local Censura = _G.Innovare.System.Censura
+    if not Censura then
+        error("Censura not available")
+    end
     
-    -- Create main section with error handling
-    local success, section = pcall(function()
-        debugPrint("Creating ESP settings section...")
-        local newSection = Censura.Elements.Section.new({
+    log("Censura verified")
+    
+    -- Create section with error handling
+    local section
+    local success, err = pcall(function()
+        section = Censura.Elements.Section.new({
             title = "ESP Settings"
         })
-        if not newSection then
-            error("Failed to create section")
+        
+        if not section then
+            error("Section creation returned nil")
         end
-        newSection.Parent = tab
-        return newSection
+        
+        section.Parent = tab
     end)
     
     if not success then
-        error("Failed to create section: " .. tostring(section))
+        error("Failed to create section: " .. tostring(err))
     end
     
-    -- Add toggle for highlights with error handling
-    success = pcall(function()
-        debugPrint("Creating highlight toggle...")
-        local toggle = Censura.Elements.Toggle.new({
+    log("Section created successfully")
+    
+    -- Create toggles with error handling
+    success, err = pcall(function()
+        -- Highlight toggle
+        local highlightToggle = Censura.Elements.Toggle.new({
             text = "Highlight Players",
             default = ESP.Enabled,
             onToggle = function(enabled)
@@ -59,20 +64,15 @@ function ESP.Init(tab)
                 ESP:UpdateESP()
             end
         })
-        if not toggle then
-            error("Failed to create highlight toggle")
+        
+        if not highlightToggle then
+            error("Highlight toggle creation returned nil")
         end
-        toggle.Parent = section
-    end)
-    
-    if not success then
-        error("Failed to create highlight toggle")
-    end
-    
-    -- Add toggle for info display with error handling
-    success = pcall(function()
-        debugPrint("Creating info toggle...")
-        local toggle = Censura.Elements.Toggle.new({
+        
+        highlightToggle.Parent = section
+        
+        -- Info toggle
+        local infoToggle = Censura.Elements.Toggle.new({
             text = "Show Player Info",
             default = ESP.ShowInfo,
             onToggle = function(enabled)
@@ -80,27 +80,30 @@ function ESP.Init(tab)
                 ESP:UpdateESP()
             end
         })
-        if not toggle then
-            error("Failed to create info toggle")
+        
+        if not infoToggle then
+            error("Info toggle creation returned nil")
         end
-        toggle.Parent = section
+        
+        infoToggle.Parent = section
     end)
     
     if not success then
-        error("Failed to create info toggle")
+        error("Failed to create toggles: " .. tostring(err))
     end
     
-    -- Initialize ESP with error handling
-    success = pcall(function()
-        debugPrint("Setting up ESP connections...")
+    log("Toggles created successfully")
+    
+    -- Setup ESP with error handling
+    success, err = pcall(function()
         ESP:SetupConnections()
     end)
     
     if not success then
-        error("Failed to setup ESP connections")
+        error("Failed to setup ESP connections: " .. tostring(err))
     end
     
-    debugPrint("ESP plugin initialized successfully!")
+    log("ESP initialization completed successfully")
 end
 
 function ESP:SetupConnections()
