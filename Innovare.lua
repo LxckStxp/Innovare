@@ -4,20 +4,17 @@
     Author: LxckStxp
     Version: 1.0.0
     
-    Example Usage:
-    local Innovare = loadstring(game:HttpGet("https://raw.githubusercontent.com/LxckStxp/Innovare/main/Innovare.lua"))()
-    -- Load a custom plugin
-    Innovare.Modules.PluginManager.LoadPlugin({
-        Name = "MyPlugin",
-        Init = function(tab)
-            print("Plugin loaded!")
-        end
-    })
+    Features:
+    - Dynamic plugin loading
+    - UI management with TabSystem
+    - Error handling and logging
+    - Clean initialization and cleanup
 --]]
 
 -- Services
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
 
 -- Constants
 local LOAD_TIMEOUT = 5
@@ -41,17 +38,23 @@ if _G.Innovare then
     task.wait(0.1)
 end
 
--- Load and verify Censura
-local success, result = pcall(function()
-    return loadstring(game:HttpGet(DEPENDENCIES.Censura))()
-end)
-
-if not success then
-    error("Failed to load Censura: " .. tostring(result))
-    return
+-- Load Dependencies
+local function loadDependency(name, url)
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url))()
+    end)
+    
+    if not success then
+        error(string.format("Failed to load %s: %s", name, tostring(result)))
+    end
+    
+    return result
 end
 
--- Wait for Censura to initialize
+-- Load Censura
+loadDependency("Censura", DEPENDENCIES.Censura)
+
+-- Wait for Censura initialization
 local startTime = tick()
 repeat
     if _G.Censura and _G.Censura.Elements and _G.Censura.Elements.Window then
@@ -62,11 +65,10 @@ until tick() - startTime > LOAD_TIMEOUT
 
 if not (_G.Censura and _G.Censura.Elements and _G.Censura.Elements.Window) then
     error("Censura failed to initialize within timeout period")
-    return
 end
 
 -- Load Oratio
-local Oratio = loadstring(game:HttpGet(DEPENDENCIES.Oratio))()
+local Oratio = loadDependency("Oratio", DEPENDENCIES.Oratio)
 
 -- Establish Global Innovare Table
 _G.Innovare = {
@@ -143,7 +145,10 @@ Sys.SetupGUI = function()
     Inn.GUI.DisplayOrder = 999
     
     local success = pcall(function()
-        Inn.GUI.Parent = game:GetService("CoreGui")
+        if syn and syn.protect_gui then
+            syn.protect_gui(Inn.GUI)
+        end
+        Inn.GUI.Parent = CoreGui
     end)
     
     if not success then
@@ -165,6 +170,19 @@ Sys.Cleanup = function()
                 Ora:Info(string.format("Cleaned up plugin: %s", name))
             end)
         end
+    end
+    
+    -- Cleanup core modules in reverse order
+    if Inn.Modules.PluginManager and Inn.Modules.PluginManager.Cleanup then
+        pcall(function()
+            Inn.Modules.PluginManager:Cleanup()
+        end)
+    end
+    
+    if Inn.Modules.TabSystem and Inn.Modules.TabSystem.Cleanup then
+        pcall(function()
+            Inn.Modules.TabSystem:Cleanup()
+        end)
     end
     
     -- Cleanup GUI
@@ -201,17 +219,28 @@ Sys.Init = function()
         return false
     end
     
-    -- Load Plugin Manager
-    Inn.Modules.PluginManager = Sys.LoadModule("Core/PluginManager")
-    if not Inn.Modules.PluginManager then
-        Ora:Error("Failed to load PluginManager")
-        return false
+    -- Load Core Modules in correct order
+    local coreModules = {
+        TabSystem = "Core/TabSystem",
+        PluginManager = "Core/PluginManager"
+    }
+    
+    -- Load modules sequentially
+    for name, path in pairs(coreModules) do
+        Ora:Info("Loading " .. name .. "...")
+        Inn.Modules[name] = Sys.LoadModule(path)
+        
+        if not Inn.Modules[name] then
+            Ora:Error("Failed to load " .. name)
+            return false
+        end
     end
     
     -- Create main window
     local window, windowContent = Sys.Censura.Elements.Window.new({
         title = "Innovare",
-        size = UDim2.new(0, 400, 0, 500)
+        size = UDim2.new(0, 400, 0, 500),
+        position = UDim2.new(0.5, -200, 0.5, -250)
     })
     
     if not window or not windowContent then
@@ -219,7 +248,13 @@ Sys.Init = function()
         return false
     end
     
-    -- Initialize Plugin Manager
+    -- Initialize TabSystem first
+    if not Inn.Modules.TabSystem.Init(windowContent) then
+        Ora:Error("Failed to initialize TabSystem")
+        return false
+    end
+    
+    -- Initialize PluginManager after TabSystem
     if not Inn.Modules.PluginManager.Init(window, windowContent) then
         Ora:Error("Failed to initialize PluginManager")
         return false
@@ -227,7 +262,7 @@ Sys.Init = function()
     
     -- Load default plugins
     local plugins = {
-        "ESP" -- Add more plugins here
+        "ESP" -- Add more default plugins here
     }
     
     local loadedPlugins = 0
