@@ -1,8 +1,16 @@
--- PluginManager.lua
--- Core plugin management system for Innovare
--- Author: LxckStxp
--- Version: 1.0.0
+--[[ 
+    PluginManager.lua
+    Core plugin management system for Innovare
+    Author: LxckStxp
+    Version: 1.0.0
+    
+    Example Usage:
+    local pm = require(path.to.PluginManager)
+    pm.Init(window, content)
+    pm.LoadPlugin("ESP")
+--]]
 
+-- Main Module
 local PluginManager = {
     _initialized = false,
     _plugins = {},
@@ -16,6 +24,7 @@ local Ora = _G.Innovare.System.Oratio.Logger.new({
 })
 local Censura = _G.Innovare.System.Censura
 local Utils = Censura.Modules.Utils
+local Styles = Censura.Modules.Styles
 
 -- Private Variables
 local mainWindow
@@ -23,6 +32,22 @@ local mainContent
 local tabSystem
 
 -- Private Functions
+local function setupTabButtons(tabBar)
+    return Utils.Create("Frame", {
+        Name = "TabButtons",
+        Size = UDim2.new(1, -10, 1, -4),
+        Position = UDim2.new(0, 5, 0, 2),
+        BackgroundTransparency = 1,
+        Parent = tabBar,
+        [Utils.Create("UIListLayout")] = {
+            FillDirection = Enum.FillDirection.Horizontal,
+            HorizontalAlignment = Enum.HorizontalAlignment.Left,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDim.new(0, 5)
+        }
+    })
+end
+
 local function createTabSystem()
     Ora:Info("Creating TabSystem...")
     
@@ -38,10 +63,13 @@ local function createTabSystem()
     local tabBar = Utils.Create("Frame", {
         Name = "TabBar",
         Size = UDim2.new(1, 0, 0, 30),
-        BackgroundColor3 = Censura.Modules.Styles.Colors.Window.TitleBar,
+        BackgroundColor3 = Styles.Colors.Window.TitleBar,
         Parent = container
     })
     Utils.ApplyCorners(tabBar)
+    
+    -- Create tab buttons container
+    local tabButtons = setupTabButtons(tabBar)
     
     -- Create content area
     local contentArea = Utils.Create("Frame", {
@@ -49,24 +77,30 @@ local function createTabSystem()
         Size = UDim2.new(1, 0, 1, -35),
         Position = UDim2.new(0, 0, 0, 35),
         BackgroundTransparency = 1,
+        ClipsDescendants = true,
         Parent = container
     })
     
-    -- Initialize tab data
+    -- Tab management
     local tabs = {}
     local currentTab = nil
     
-    -- Create tab system interface
-    local tabSystemInterface = {
+    -- Create TabSystem interface
+    local TabSystemInterface = {
+        Container = container,
+        Tabs = tabs,
+        
         AddTab = function(self, name)
             -- Create tab button
             local button = Utils.Create("TextButton", {
-                Size = UDim2.new(0, 100, 1, -4),
-                Position = UDim2.new(0, #tabs * 105, 0, 2),
-                BackgroundColor3 = Censura.Modules.Styles.Colors.Controls.Button.Default,
+                Size = UDim2.new(0, 100, 1, 0),
+                BackgroundColor3 = Styles.Colors.Controls.Button.Default,
                 Text = name,
-                TextColor3 = Censura.Modules.Styles.Colors.Text.Primary,
-                Parent = tabBar
+                TextColor3 = Styles.Colors.Text.Primary,
+                Font = Styles.Text.Default.Font,
+                TextSize = Styles.Text.Default.Size,
+                AutoButtonColor = false,
+                Parent = tabButtons
             })
             Utils.ApplyCorners(button)
             
@@ -75,7 +109,8 @@ local function createTabSystem()
                 Size = UDim2.new(1, 0, 1, 0),
                 BackgroundTransparency = 1,
                 ScrollBarThickness = 4,
-                Visible = #tabs == 0, -- First tab visible by default
+                ScrollBarImageColor3 = Styles.Colors.Controls.ScrollBar.Bar,
+                Visible = #self.Tabs == 0,
                 Parent = contentArea
             })
             
@@ -85,53 +120,39 @@ local function createTabSystem()
             
             -- Create tab data
             local tab = {
-                name = name,
-                button = button,
-                content = content
+                Name = name,
+                Button = button,
+                Content = content
             }
             
-            -- Tab button handler
+            -- Tab switching logic
             button.MouseButton1Click:Connect(function()
-                -- Hide all tabs
-                for _, t in ipairs(tabs) do
-                    t.content.Visible = false
-                    t.button.BackgroundColor3 = Censura.Modules.Styles.Colors.Controls.Button.Default
+                for _, t in ipairs(self.Tabs) do
+                    t.Content.Visible = false
+                    t.Button.BackgroundColor3 = Styles.Colors.Controls.Button.Default
                 end
-                
-                -- Show selected tab
                 content.Visible = true
-                button.BackgroundColor3 = Censura.Modules.Styles.Colors.Controls.Button.Pressed
+                button.BackgroundColor3 = Styles.Colors.Controls.Button.Pressed
                 currentTab = tab
             end)
             
-            table.insert(tabs, tab)
+            table.insert(self.Tabs, tab)
             return content
         end,
         
-        GetCurrentTab = function()
-            return currentTab and currentTab.name
-        end,
-        
-        SelectTab = function(self, name)
-            for _, tab in ipairs(tabs) do
-                if tab.name == name then
-                    tab.button.MouseButton1Click:Fire()
-                    break
-                end
-            end
+        GetCurrentTab = function(self)
+            return currentTab
         end
     }
     
-    -- Create initial "Settings" tab
-    local settingsTab = tabSystemInterface:AddTab("Settings")
-    
-    -- Add settings section
+    -- Create Settings tab
+    local settingsTab = TabSystemInterface:AddTab("Settings")
     local settingsSection = Censura.Elements.Section.new({
         title = "Plugin Management"
     })
     settingsSection.Parent = settingsTab
     
-    return tabSystemInterface
+    return TabSystemInterface
 end
 
 -- Public Functions
@@ -143,7 +164,6 @@ function PluginManager.Init(window, content)
     
     Ora:Info("Initializing PluginManager...")
     
-    -- Store references
     mainWindow = window
     mainContent = content
     
@@ -249,7 +269,6 @@ function PluginManager.UnloadPlugin(pluginName)
     return true
 end
 
--- Debug Functions
 function PluginManager.Debug()
     print("\n=== PluginManager Debug ===")
     print("Initialized:", PluginManager._initialized)
@@ -264,8 +283,15 @@ function PluginManager.Debug()
         end
     end
     
+    if tabSystem and tabSystem.Tabs then
+        print("\nTabs:")
+        for _, tab in ipairs(tabSystem.Tabs) do
+            print("- " .. tab.Name)
+        end
+    end
+    
     print("\nLoaded Plugins:")
-    for name, plugin in pairs(PluginManager._plugins) do
+    for name, _ in pairs(PluginManager._plugins) do
         print("- " .. name .. " (Enabled: " .. tostring(PluginManager._activePlugins[name]) .. ")")
     end
     print("=========================\n")
