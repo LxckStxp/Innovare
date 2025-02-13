@@ -254,15 +254,15 @@ Sys.Init = function()
         return false
     end
     
-    -- Initialize PluginManager after TabSystem
-    if not Inn.Modules.PluginManager.Init(window, windowContent) then
+    -- Initialize PluginManager with TabSystem reference
+    if not Inn.Modules.PluginManager.Init(window, Inn.Modules.TabSystem) then
         Ora:Error("Failed to initialize PluginManager")
         return false
     end
     
     -- Load default plugins
     local plugins = {
-        "ESP" -- Add more default plugins here
+        "ESP"
     }
     
     local loadedPlugins = 0
