@@ -118,14 +118,28 @@ Sys.LoadModule = function(module)
         return Inn.Modules[module]
     end
     
-    local url = Inn.Git .. module .. ".lua"
+    -- Ensure proper path construction
+    local modulePath = typeof(module) == "string" 
+        and (Inn.Git .. tostring(module) .. ".lua")
+        or error("Module path must be a string")
+    
     local success, result = pcall(function()
-        local content = game:HttpGet(url, true)
-        return loadstring(content)()
+        local content = game:HttpGet(modulePath, true)
+        if not content then
+            error("Failed to fetch module content")
+        end
+        
+        -- Load and execute the module
+        local fn, loadError = loadstring(content)
+        if not fn then
+            error("Failed to compile module: " .. tostring(loadError))
+        end
+        
+        return fn()
     end)
     
     if not success then
-        Ora:Error(string.format("Failed to load module %s: %s", module, tostring(result)))
+        Ora:Error(string.format("Failed to load module '%s': %s", tostring(module), tostring(result)))
         return nil
     end
     
