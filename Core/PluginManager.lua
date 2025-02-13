@@ -1,16 +1,7 @@
---[[ 
-    PluginManager.lua
-    Core plugin management system for Innovare
-    Author: LxckStxp
-    Version: 1.0.0
-    
-    Example Usage:
-    local pm = require(path.to.PluginManager)
-    pm.Init(window, content)
-    pm.LoadPlugin("ESP")
---]]
+-- PluginManager.lua
+-- Core plugin management system for Innovare
+-- Version: 1.0.0
 
--- Main Module
 local PluginManager = {
     _initialized = false,
     _plugins = {},
@@ -23,139 +14,13 @@ local Ora = _G.Innovare.System.Oratio.Logger.new({
     moduleName = "PluginManager"
 })
 local Censura = _G.Innovare.System.Censura
-local Utils = Censura.Modules.Utils
-local Styles = Censura.Modules.Styles
 
 -- Private Variables
 local mainWindow
 local mainContent
 local tabSystem
 
--- Private Functions
-local function setupTabButtons(tabBar)
-    return Utils.Create("Frame", {
-        Name = "TabButtons",
-        Size = UDim2.new(1, -10, 1, -4),
-        Position = UDim2.new(0, 5, 0, 2),
-        BackgroundTransparency = 1,
-        Parent = tabBar,
-        [Utils.Create("UIListLayout")] = {
-            FillDirection = Enum.FillDirection.Horizontal,
-            HorizontalAlignment = Enum.HorizontalAlignment.Left,
-            SortOrder = Enum.SortOrder.LayoutOrder,
-            Padding = UDim.new(0, 5)
-        }
-    })
-end
-
-local function createTabSystem()
-    Ora:Info("Creating TabSystem...")
-    
-    -- Create main container
-    local container = Utils.Create("Frame", {
-        Name = "TabSystemContainer",
-        Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1,
-        Parent = mainContent
-    })
-    
-    -- Create tab bar
-    local tabBar = Utils.Create("Frame", {
-        Name = "TabBar",
-        Size = UDim2.new(1, 0, 0, 30),
-        BackgroundColor3 = Styles.Colors.Window.TitleBar,
-        Parent = container
-    })
-    Utils.ApplyCorners(tabBar)
-    
-    -- Create tab buttons container
-    local tabButtons = setupTabButtons(tabBar)
-    
-    -- Create content area
-    local contentArea = Utils.Create("Frame", {
-        Name = "ContentArea",
-        Size = UDim2.new(1, 0, 1, -35),
-        Position = UDim2.new(0, 0, 0, 35),
-        BackgroundTransparency = 1,
-        ClipsDescendants = true,
-        Parent = container
-    })
-    
-    -- Tab management
-    local tabs = {}
-    local currentTab = nil
-    
-    -- Create TabSystem interface
-    local TabSystemInterface = {
-        Container = container,
-        Tabs = tabs,
-        
-        AddTab = function(self, name)
-            -- Create tab button
-            local button = Utils.Create("TextButton", {
-                Size = UDim2.new(0, 100, 1, 0),
-                BackgroundColor3 = Styles.Colors.Controls.Button.Default,
-                Text = name,
-                TextColor3 = Styles.Colors.Text.Primary,
-                Font = Styles.Text.Default.Font,
-                TextSize = Styles.Text.Default.Size,
-                AutoButtonColor = false,
-                Parent = tabButtons
-            })
-            Utils.ApplyCorners(button)
-            
-            -- Create content frame
-            local content = Utils.Create("ScrollingFrame", {
-                Size = UDim2.new(1, 0, 1, 0),
-                BackgroundTransparency = 1,
-                ScrollBarThickness = 4,
-                ScrollBarImageColor3 = Styles.Colors.Controls.ScrollBar.Bar,
-                Visible = #self.Tabs == 0,
-                Parent = contentArea
-            })
-            
-            -- Setup content layout
-            Utils.SetupListLayout(content)
-            Utils.CreatePadding(content)
-            
-            -- Create tab data
-            local tab = {
-                Name = name,
-                Button = button,
-                Content = content
-            }
-            
-            -- Tab switching logic
-            button.MouseButton1Click:Connect(function()
-                for _, t in ipairs(self.Tabs) do
-                    t.Content.Visible = false
-                    t.Button.BackgroundColor3 = Styles.Colors.Controls.Button.Default
-                end
-                content.Visible = true
-                button.BackgroundColor3 = Styles.Colors.Controls.Button.Pressed
-                currentTab = tab
-            end)
-            
-            table.insert(self.Tabs, tab)
-            return content
-        end,
-        
-        GetCurrentTab = function(self)
-            return currentTab
-        end
-    }
-    
-    -- Create Settings tab
-    local settingsTab = TabSystemInterface:AddTab("Settings")
-    local settingsSection = Censura.Elements.Section.new({
-        title = "Plugin Management"
-    })
-    settingsSection.Parent = settingsTab
-    
-    return TabSystemInterface
-end
-
--- Public Functions
+-- Initialize the plugin manager
 function PluginManager.Init(window, content)
     if PluginManager._initialized then
         Ora:Warn("PluginManager already initialized")
@@ -164,12 +29,34 @@ function PluginManager.Init(window, content)
     
     Ora:Info("Initializing PluginManager...")
     
+    -- Store references
     mainWindow = window
     mainContent = content
     
-    -- Create tab system
+    -- Create TabSystem
     local success, result = pcall(function()
-        return createTabSystem()
+        -- Create TabSystem using Censura
+        local newTabSystem = Censura.Elements.TabSystem.new()
+        if not newTabSystem then
+            error("Failed to create TabSystem")
+        end
+        
+        -- Parent to content
+        newTabSystem.Parent = mainContent
+        
+        -- Create Settings tab
+        local settingsTab = newTabSystem:AddTab("Settings")
+        if not settingsTab then
+            error("Failed to create Settings tab")
+        end
+        
+        -- Add settings section
+        local settingsSection = Censura.Elements.Section.new({
+            title = "Plugin Management"
+        })
+        settingsSection.Parent = settingsTab
+        
+        return newTabSystem
     end)
     
     if not success then
@@ -184,6 +71,7 @@ function PluginManager.Init(window, content)
     return true
 end
 
+-- Load a plugin
 function PluginManager.LoadPlugin(pluginNameOrModule)
     if not PluginManager._initialized then
         Ora:Error("PluginManager not initialized")
@@ -194,6 +82,7 @@ function PluginManager.LoadPlugin(pluginNameOrModule)
     local pluginName, plugin
     if type(pluginNameOrModule) == "string" then
         pluginName = pluginNameOrModule
+        -- Load plugin module
         local success, result = pcall(function()
             return _G.Innovare.System.LoadModule("Plugins/" .. pluginNameOrModule .. "/init")
         end)
@@ -202,6 +91,7 @@ function PluginManager.LoadPlugin(pluginNameOrModule)
             Ora:Error("Failed to load plugin module: " .. pluginName)
             return false
         end
+        
         plugin = result
     else
         plugin = pluginNameOrModule
@@ -231,7 +121,7 @@ function PluginManager.LoadPlugin(pluginNameOrModule)
         return false
     end
     
-    -- Store plugin
+    -- Store plugin references
     PluginManager._plugins[pluginName] = plugin
     PluginManager._activePlugins[pluginName] = true
     PluginManager._tabs[pluginName] = pluginTab
@@ -241,6 +131,7 @@ function PluginManager.LoadPlugin(pluginNameOrModule)
     return true
 end
 
+-- Unload a plugin
 function PluginManager.UnloadPlugin(pluginName)
     local plugin = PluginManager._plugins[pluginName]
     if not plugin then
@@ -269,6 +160,64 @@ function PluginManager.UnloadPlugin(pluginName)
     return true
 end
 
+-- Enable a plugin
+function PluginManager.EnablePlugin(pluginName)
+    local plugin = PluginManager._plugins[pluginName]
+    if not plugin then return false end
+    
+    if plugin.Enable then
+        local success, error = pcall(function()
+            plugin:Enable()
+        end)
+        
+        if success then
+            PluginManager._activePlugins[pluginName] = true
+            return true
+        else
+            Ora:Error("Failed to enable plugin: " .. pluginName .. " - " .. error)
+        end
+    end
+    return false
+end
+
+-- Disable a plugin
+function PluginManager.DisablePlugin(pluginName)
+    local plugin = PluginManager._plugins[pluginName]
+    if not plugin then return false end
+    
+    if plugin.Disable then
+        local success, error = pcall(function()
+            plugin:Disable()
+        end)
+        
+        if success then
+            PluginManager._activePlugins[pluginName] = false
+            return true
+        else
+            Ora:Error("Failed to disable plugin: " .. pluginName .. " - " .. error)
+        end
+    end
+    return false
+end
+
+-- Utility Functions
+function PluginManager.GetLoadedPlugins()
+    local plugins = {}
+    for name, _ in pairs(PluginManager._plugins) do
+        table.insert(plugins, name)
+    end
+    return plugins
+end
+
+function PluginManager.IsPluginLoaded(pluginName)
+    return PluginManager._plugins[pluginName] ~= nil
+end
+
+function PluginManager.IsPluginEnabled(pluginName)
+    return PluginManager._activePlugins[pluginName] == true
+end
+
+-- Debug Function
 function PluginManager.Debug()
     print("\n=== PluginManager Debug ===")
     print("Initialized:", PluginManager._initialized)
@@ -283,15 +232,8 @@ function PluginManager.Debug()
         end
     end
     
-    if tabSystem and tabSystem.Tabs then
-        print("\nTabs:")
-        for _, tab in ipairs(tabSystem.Tabs) do
-            print("- " .. tab.Name)
-        end
-    end
-    
     print("\nLoaded Plugins:")
-    for name, _ in pairs(PluginManager._plugins) do
+    for name, plugin in pairs(PluginManager._plugins) do
         print("- " .. name .. " (Enabled: " .. tostring(PluginManager._activePlugins[name]) .. ")")
     end
     print("=========================\n")
