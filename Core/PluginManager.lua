@@ -39,7 +39,7 @@ local function validatePlugin(plugin)
 end
 
 -- Public Functions
-function PluginManager.Init(window, content)
+function PluginManager.Init(window, tabSystem)
     if PluginManager._initialized then
         Ora:Warn("PluginManager already initialized")
         return false
@@ -47,18 +47,19 @@ function PluginManager.Init(window, content)
     
     Ora:Info("Initializing PluginManager...")
     
-    -- Initialize TabSystem
-    local success = TabSystem.Init(content)
-    if not success then
-        Ora:Error("Failed to initialize TabSystem")
+    if not tabSystem._initialized then
+        Ora:Error("TabSystem must be initialized before PluginManager")
         return false
     end
     
+    -- Store references
+    mainWindow = window
+    PluginManager.tabSystem = tabSystem
     PluginManager._initialized = true
+    
     Ora:Info("PluginManager initialized successfully")
     return true
 end
-
 function PluginManager.LoadPlugin(pluginNameOrModule)
     if not PluginManager._initialized then
         Ora:Error("PluginManager not initialized")
