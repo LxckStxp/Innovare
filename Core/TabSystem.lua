@@ -26,7 +26,7 @@ local contentArea
 -- Private Functions
 local function createTabButton(name)
     local button = Utils.Create("TextButton", {
-        Name = tostring(name),
+        Name = "Button",
         Size = UDim2.new(0, 100, 1, -4),
         BackgroundColor3 = Styles.Colors.Controls.Button.Default,
         Text = name,
