@@ -25,64 +25,103 @@ local tabSystem
 local function createTabSystem()
     Ora:Info("Creating TabSystem...")
     
-    -- Create TabSystem instance
-    local newTabSystem = Censura.Elements.TabSystem.new()
-    if not newTabSystem then
-        return nil, "Failed to create TabSystem"
-    end
+    -- Debug the TabSystem object
+    Ora:Info("TabSystem object type: " .. type(Censura.Elements.TabSystem))
     
-    -- Parent to content
+    -- Create the TabSystem first
+    local newTabSystem = Censura.Elements.TabSystem.new()
+    
+    -- Debug the created object
+    Ora:Info("Created TabSystem object: " .. tostring(newTabSystem))
+    
+    -- Parent after creation
     newTabSystem.Parent = mainContent
     
-    -- Create Settings tab
-    local settingsTab = newTabSystem:AddTab("Settings")
-    if not settingsTab then
-        return nil, "Failed to create Settings tab"
+    -- Debug parenting
+    Ora:Info("TabSystem parented to: " .. tostring(newTabSystem.Parent))
+    
+    -- Verify the AddTab method exists
+    if not newTabSystem.AddTab then
+        Ora:Error("AddTab method not found on TabSystem")
+        return nil
     end
     
-    -- Create settings section
-    local settingsSection = Censura.Elements.Section.new({
-        title = "Plugin Management"
-    })
-    settingsSection.Parent = settingsTab
+    -- Create Settings tab with error handling
+    local success, settingsTab = pcall(function()
+        return newTabSystem:AddTab("Settings")
+    end)
+    
+    if not success then
+        Ora:Error("Failed to create Settings tab: " .. tostring(settingsTab))
+        return nil
+    end
+    
+    -- Create settings section with error handling
+    success, _ = pcall(function()
+        local settingsSection = Censura.Elements.Section.new({
+            title = "Plugin Management"
+        })
+        settingsSection.Parent = settingsTab
+    end)
+    
+    if not success then
+        Ora:Error("Failed to create settings section")
+        return nil
+    end
     
     return newTabSystem
 end
 
-local function validatePlugin(plugin)
-    if type(plugin) ~= "table" then
-        return false, "Plugin must be a table"
+-- Let's also add a verification function
+local function verifyTabSystem(tabSystem)
+    if not tabSystem then
+        return false, "TabSystem is nil"
     end
     
-    if type(plugin.Init) ~= "function" then
-        return false, "Plugin must have Init function"
+    if not tabSystem.AddTab then
+        return false, "TabSystem missing AddTab method"
+    end
+    
+    if not tabSystem.Parent then
+        return false, "TabSystem not parented"
     end
     
     return true
 end
 
--- Public Functions
+-- Modify the Init function to use these
 function PluginManager.Init(window, content)
     if PluginManager._initialized then
         Ora:Warn("PluginManager already initialized")
         return false
     end
     
-    -- Validate parameters
+    Ora:Info("Initializing PluginManager...")
+    
+    -- Verify parameters
     if not window or not content then
         Ora:Error("Window and content parameters required")
         return false
     end
     
-    Ora:Info("Initializing PluginManager...")
+    -- Debug available Censura elements
+    Ora:Info("Available Censura elements:")
+    for name, element in pairs(Censura.Elements) do
+        Ora:Info("- " .. name)
+    end
     
     -- Store references
     mainWindow = window
     mainContent = content
     
-    -- Setup tab system
+    -- Create tab system
     local success, result = pcall(function()
-        return createTabSystem()
+        local ts = createTabSystem()
+        local valid, err = verifyTabSystem(ts)
+        if not valid then
+            error(err)
+        end
+        return ts
     end)
     
     if not success then
@@ -97,177 +136,32 @@ function PluginManager.Init(window, content)
     return true
 end
 
-function PluginManager.LoadPlugin(pluginNameOrModule)
-    if not PluginManager._initialized then
-        Ora:Error("PluginManager not initialized")
-        return false
-    end
+-- Add a test function
+function PluginManager.TestTabSystem()
+    print("\n=== TabSystem Test ===")
     
-    -- Handle plugin input
-    local pluginName, plugin
-    if type(pluginNameOrModule) == "string" then
-        pluginName = pluginNameOrModule
-        -- Load plugin module
-        local success, result = pcall(function()
-            return _G.Innovare.System.LoadModule("Plugins/" .. pluginNameOrModule .. "/init")
-        end)
-        
-        if not success then
-            Ora:Error("Failed to load plugin module: " .. pluginName)
-            return false
+    -- Test TabSystem creation
+    local ts = Censura.Elements.TabSystem.new()
+    print("TabSystem created:", ts ~= nil)
+    
+    if ts then
+        -- Check methods
+        print("\nMethods:")
+        for k, v in pairs(ts) do
+            print("-", k, type(v))
         end
         
-        plugin = result
-    else
-        plugin = pluginNameOrModule
-        pluginName = plugin.Name or "UnnamedPlugin"
-    end
-    
-    -- Validate plugin
-    local isValid, error = validatePlugin(plugin)
-    if not isValid then
-        Ora:Error("Invalid plugin: " .. error)
-        return false
-    end
-    
-    -- Create plugin tab
-    local pluginTab = tabSystem:AddTab(pluginName)
-    if not pluginTab then
-        Ora:Error("Failed to create tab for: " .. pluginName)
-        return false
-    end
-    
-    -- Initialize plugin
-    local success, error = pcall(function()
-        plugin.Init(pluginTab)
-    end)
-    
-    if not success then
-        Ora:Error("Plugin initialization failed: " .. tostring(error))
-        return false
-    end
-    
-    -- Store plugin references
-    PluginManager._plugins[pluginName] = plugin
-    PluginManager._activePlugins[pluginName] = true
-    PluginManager._tabs[pluginName] = pluginTab
-    _G.Innovare.Plugins[pluginName] = plugin
-    
-    Ora:Info("Successfully loaded plugin: " .. pluginName)
-    return true
-end
-
-function PluginManager.UnloadPlugin(pluginName)
-    local plugin = PluginManager._plugins[pluginName]
-    if not plugin then
-        Ora:Warn("Plugin not found: " .. pluginName)
-        return false
-    end
-    
-    -- Cleanup plugin
-    if plugin.Cleanup then
-        local success, error = pcall(function()
-            plugin:Cleanup()
-        end)
-        
-        if not success then
-            Ora:Error("Failed to cleanup plugin: " .. pluginName .. " - " .. error)
+        -- Check metatable
+        local mt = getmetatable(ts)
+        if mt then
+            print("\nMetatable methods:")
+            for k, v in pairs(mt) do
+                print("-", k, type(v))
+            end
         end
     end
     
-    -- Remove references
-    PluginManager._plugins[pluginName] = nil
-    PluginManager._activePlugins[pluginName] = nil
-    PluginManager._tabs[pluginName] = nil
-    _G.Innovare.Plugins[pluginName] = nil
-    
-    Ora:Info("Successfully unloaded plugin: " .. pluginName)
-    return true
-end
-
-function PluginManager.EnablePlugin(pluginName)
-    local plugin = PluginManager._plugins[pluginName]
-    if not plugin then return false end
-    
-    if plugin.Enable then
-        local success, error = pcall(function()
-            plugin:Enable()
-        end)
-        
-        if success then
-            PluginManager._activePlugins[pluginName] = true
-            return true
-        else
-            Ora:Error("Failed to enable plugin: " .. pluginName .. " - " .. error)
-        end
-    end
-    return false
-end
-
-function PluginManager.DisablePlugin(pluginName)
-    local plugin = PluginManager._plugins[pluginName]
-    if not plugin then return false end
-    
-    if plugin.Disable then
-        local success, error = pcall(function()
-            plugin:Disable()
-        end)
-        
-        if success then
-            PluginManager._activePlugins[pluginName] = false
-            return true
-        else
-            Ora:Error("Failed to disable plugin: " .. pluginName .. " - " .. error)
-        end
-    end
-    return false
-end
-
--- Utility Functions
-function PluginManager.GetLoadedPlugins()
-    local plugins = {}
-    for name, _ in pairs(PluginManager._plugins) do
-        table.insert(plugins, name)
-    end
-    return plugins
-end
-
-function PluginManager.IsPluginLoaded(pluginName)
-    return PluginManager._plugins[pluginName] ~= nil
-end
-
-function PluginManager.IsPluginEnabled(pluginName)
-    return PluginManager._activePlugins[pluginName] == true
-end
-
--- Debug Function
-function PluginManager.Debug()
-    print("\n=== PluginManager Debug ===")
-    print("Initialized:", PluginManager._initialized)
-    print("Window exists:", mainWindow ~= nil)
-    print("Content exists:", mainContent ~= nil)
-    print("TabSystem exists:", tabSystem ~= nil)
-    
-    if mainContent then
-        print("\nContent Children:")
-        for _, child in ipairs(mainContent:GetChildren()) do
-            print("- " .. child.Name .. " (" .. child.ClassName .. ")")
-        end
-    end
-    
-    if tabSystem then
-        print("\nTabSystem Info:")
-        print("Active Tabs:")
-        for name, tab in pairs(PluginManager._tabs) do
-            print("- " .. name)
-        end
-    end
-    
-    print("\nLoaded Plugins:")
-    for name, plugin in pairs(PluginManager._plugins) do
-        print("- " .. name .. " (Enabled: " .. tostring(PluginManager._activePlugins[name]) .. ")")
-    end
-    print("=========================\n")
+    print("=====================\n")
 end
 
 return PluginManager
