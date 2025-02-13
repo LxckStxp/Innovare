@@ -29,7 +29,7 @@ local function createTabButton(name)
         Name = "Button",
         Size = UDim2.new(0, 100, 1, -4),
         BackgroundColor3 = Styles.Colors.Controls.Button.Default,
-        Text = name,
+        Text = "Button",
         TextColor3 = Styles.Colors.Text.Primary,
         Font = Styles.Text.Default.Font,
         TextSize = Styles.Text.Default.Size,
