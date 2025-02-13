@@ -60,6 +60,7 @@ function PluginManager.Init(window, tabSystem)
     Ora:Info("PluginManager initialized successfully")
     return true
 end
+
 function PluginManager.LoadPlugin(pluginNameOrModule)
     if not PluginManager._initialized then
         Ora:Error("PluginManager not initialized")
@@ -70,7 +71,6 @@ function PluginManager.LoadPlugin(pluginNameOrModule)
     local pluginName, plugin
     if type(pluginNameOrModule) == "string" then
         pluginName = pluginNameOrModule
-        -- Load plugin module
         local success, result = pcall(function()
             return _G.Innovare.System.LoadModule("Plugins/" .. pluginNameOrModule .. "/init")
         end)
@@ -86,14 +86,13 @@ function PluginManager.LoadPlugin(pluginNameOrModule)
     end
     
     -- Validate plugin
-    local isValid, error = validatePlugin(plugin)
-    if not isValid then
-        Ora:Error("Invalid plugin: " .. error)
+    if type(plugin) ~= "table" or type(plugin.Init) ~= "function" then
+        Ora:Error("Invalid plugin structure: " .. pluginName)
         return false
     end
     
-    -- Create plugin tab
-    local pluginTab = TabSystem.AddTab(pluginName)
+    -- Create plugin tab using TabSystem reference
+    local pluginTab = PluginManager.tabSystem:AddTab(pluginName)
     if not pluginTab then
         Ora:Error("Failed to create tab for: " .. pluginName)
         return false
@@ -106,7 +105,7 @@ function PluginManager.LoadPlugin(pluginNameOrModule)
     
     if not success then
         Ora:Error("Plugin initialization failed: " .. tostring(error))
-        TabSystem.RemoveTab(pluginName)
+        PluginManager.tabSystem:RemoveTab(pluginName)
         return false
     end
     
